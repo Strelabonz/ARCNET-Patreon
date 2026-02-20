@@ -13,7 +13,8 @@ async function fetchPatrons() {
     const url = new URL(BASE_URL)
     url.searchParams.set(
         "fields[member]",
-        "full_name,patron_status,currently_entitled_amount_cents"
+        "full_name,patron_status,currently_entitled_amount_cents",
+        "page[count]", "1000"
     )
 
     const response = await fetch(url, {
@@ -29,26 +30,26 @@ async function fetchPatrons() {
 
     const json = await response.json()
 
-    const names = json.data.reduce((names, member) => {
-        const attrs = member.attributes
-        if (attrs.patron_status !== 'active_patron' || attrs.currently_entitled_amount_cents <= 0) {
-            return names
-        }
-        return [...names, attr.full_name.trim()]
-    },[])
+    const activeMembers = (json.data ?? []).filter(({attributes}) =>
+        attributes?.patron_status === "active_patron" &&
+        (attributes?.currently_entitled_amount_cents ?? 0) > 0
+    )
+    const names = activeMembers
+        .map(({attributes}) => String(attributes?.full_name ?? "").trim())
+        .filter((name) => name.length > 0)
 
     return Array.from(new Set(names))
 }
 
-async function main(){
+async function main() {
 
 
-    const names = fetchPatrons()
+    const names = await fetchPatrons()
 
     const tempFile = 'out/patrons.txt.tmp'
     const txtFile = 'out/patrons.txt'
 
-    await fs.mkdir("out", { recursive: true });
+    await fs.mkdir("out", {recursive: true});
     await fs.writeFile(tempFile, names.join("\n") + "\n");
     await fs.rename(tempFile, txtFile);
 }
