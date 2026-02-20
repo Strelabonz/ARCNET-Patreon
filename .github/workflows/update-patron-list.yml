@@ -1,0 +1,44 @@
+name: Update Patron List
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # hourly (UTC)
+  workflow_dispatch: {}  # manual run button
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+  
+jobs:
+  fetch-patrons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch Patrons
+        run: node scripts/fetchPatrons.mjs
+
+      - name: Update list
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+        
+  deploy:
+    needs: fetch-patrons
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+      
+        
