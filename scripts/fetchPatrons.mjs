@@ -1,25 +1,56 @@
 import fs from "node:fs/promises"
 
+const TOKEN = process.env.PATREON_ACCESS_TOKEN;
+const CAMPAIGN_ID = process.env.PATREON_CAMPAIGN_ID;
+
+if (!TOKEN) throw new Error("Missing PATREON_ACCESS_TOKEN");
+if (!CAMPAIGN_ID) throw new Error("Missing PATREON_CAMPAIGN_ID");
+
+const BASE_URL = `https://www.patreon.com/api/oauth2/v2/campaigns/${CAMPAIGN_ID}/members`
+
+
+async function fetchPatrons() {
+    const url = new URL(BASE_URL)
+    url.searchParams.set(
+        "fields[member]",
+        "full_name,patron_status,currently_entitled_amount_cents"
+    )
+
+    const response = await fetch(url, {
+        headers: {
+            Authorization: `Bearer ${TOKEN}`,
+        },
+    })
+
+    if (!response.ok) {
+        const text = await response.text()
+        throw new Error(`Patreon API error ${response.status}: ${text}`)
+    }
+
+    const json = await response.json()
+
+    const names = json.data.reduce((names, member) => {
+        const attrs = member.attributes
+        if (attrs.patron_status !== 'active_patron' || attrs.currently_entitled_amount_cents <= 0) {
+            return names
+        }
+        return [...names, attr.full_name.trim()]
+    },[])
+
+    return Array.from(new Set(names))
+}
 
 async function main(){
 
-const res = await fetch("https://www.patreon.com/api/oauth2/v2/campaigns", {
-  headers: {
-    Authorization: `Bearer ${process.env.PATREON_ACCESS_TOKEN}`,
-  },
-});
 
-console.log(await res.text());
-process.exit(0);
-  
-  const names = ['mrow','strelz','surfs up','actions']
-  
-  const tempFile = 'out/patrons.txt.tmp'
-  const txtFile = 'out/patrons.txt'
+    const names = fetchPatrons()
 
-  await fs.mkdir("out", { recursive: true });
-  await fs.writeFile(tempFile, names.join("\n") + "\n");
-  await fs.rename(tempFile, txtFile);
+    const tempFile = 'out/patrons.txt.tmp'
+    const txtFile = 'out/patrons.txt'
+
+    await fs.mkdir("out", { recursive: true });
+    await fs.writeFile(tempFile, names.join("\n") + "\n");
+    await fs.rename(tempFile, txtFile);
 }
 
 main()
